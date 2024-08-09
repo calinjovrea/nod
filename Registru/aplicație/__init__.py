@@ -22,7 +22,7 @@ aplicație = Flask(__name__)
 
 registru = Registrul()
 
-cheie_geneză_privată = Portofel.din_cheie(Portofel,f"C:\\Users\\jovre\\Documents\\GitHub\\sistem\\sistem\\Registru\\utile\\chei\\cheie_privată.pem")
+cheie_geneză_privată = Portofel.din_cheie(Portofel,f"C:\\Users\\Calin\\Documents\\GitHub\\nod\\Registru\\utile\\chei\\cheie_privată.pem")
 cheie_geneză_publică = cheie_geneză_privată.public_key()
 portofel = Portofel(registru)
 portofel.cheie_privată = cheie_geneză_privată
@@ -34,13 +34,13 @@ pubsub = PubSub(registru, mină)
 
 data_queue = queue.Queue()
 
-URL = 'https://fe60-82-77-240-24.ngrok-free.app'
+URL = 'https://5692-82-77-240-24.ngrok-free.app'
 
 @aplicație.route('/')
 def default():
     PORT_RĂDĂCINĂ=5000
 
-    rezultat = requests.get(f'https://fe60-82-77-240-24.ngrok-free.app/registru')
+    rezultat = requests.get(f'https://5692-82-77-240-24.ngrok-free.app/registru')
 
     rezultat_registru = registru.din_json(rezultat.json())
 
@@ -169,13 +169,17 @@ def route_portofel_tranzacții():
 def route_portofel_info():
     return jsonify({'adresă': portofel.adresă, 'total': portofel.sumă})
 
+@aplicație.route('/registru/actualizare')
+def route_portofel_info():
+    return jsonify({'adresă': portofel.adresă, 'total': portofel.sumă})
+
 
 PORT_RĂDĂCINĂ = 5000
 PORT = PORT_RĂDĂCINĂ
 if 'True' in os.environ.get('PEER'):
     PORT = random.randint(5001,35000)
 
-    rezultat = requests.get(f'https://fe60-82-77-240-24.ngrok-free.app/registru')
+    rezultat = requests.get(f'https://5692-82-77-240-24.ngrok-free.app/registru')
 
     rezultat_registru = registru.din_json(rezultat.json())
 
