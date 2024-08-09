@@ -1,0 +1,14 @@
+services:
+
+  custom:
+    build:
+      context: ./
+      dockerfile: ./Dockerfile
+      
+    image: ubuntu
+    restart: unless-stopped
+    networks:
+      - registru
+
+networks:
+  registru:
