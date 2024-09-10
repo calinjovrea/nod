@@ -13,12 +13,14 @@ class Registrul:
     Implementat ca o listă de blocuri - seturi de date a tranzacțiilor
     """
 
-    def __init__(self, ):
+    def __init__(self):
         self.listă = [bloc.Bloc.geneză()]
         self.consensus = Consensus()
 
     def adaugă_bloc(self,informații):
-        self.listă.append(bloc.Bloc.minează_bloc(self.listă[len(self.listă)-1],informații))
+        bloc_ = bloc.Bloc.minează_bloc(self.listă[len(self.listă)-1],informații)
+        self.listă.append(bloc_)
+        return bloc_
 
     def __repr__(self):
         return f'Registru: {self.listă}'

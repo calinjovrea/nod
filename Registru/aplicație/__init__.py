@@ -5,12 +5,16 @@ import os
 import time
 
 from flask import Flask, jsonify, request
+from flask_cors import CORS
 
 from Registru.portofel.portofel import Portofel
 from Registru.portofel.tranzacție import Tranzacție
 from Registru.portofel.mină import Mină
 from Registru.sistem import Registrul
-from Registru.pubsub import PubSub
+
+from Registru.utile.server import Server
+from Registru.utile.client import Client
+from Registru.configurare import IP
 
 from multiprocessing import Process
 
@@ -19,10 +23,14 @@ import time
 import queue
 
 aplicație = Flask(__name__)
+CORS(aplicație, resources={r'/*': {'origins': ['http://localhost:3000']}})
+
+HOST = IP
+PORT = 5000
 
 registru = Registrul()
 
-cheie_geneză_privată = Portofel.din_cheie(Portofel,f"C:\\Users\\Calin\\Documents\\GitHub\\nod\\Registru\\utile\\chei\\cheie_privată.pem")
+cheie_geneză_privată = Portofel.din_cheie(Portofel,f"C:\\Users\\jovre\\Documents\\GitHub\\sistem\\nod\\Registru\\utile\\chei\\cheie_privată.pem")
 cheie_geneză_publică = cheie_geneză_privată.public_key()
 portofel = Portofel(registru)
 portofel.cheie_privată = cheie_geneză_privată
@@ -30,20 +38,44 @@ portofel.cheie_publică = cheie_geneză_publică
 portofel.serializează_cheie_publică()
 
 mină = Mină()
-pubsub = PubSub(registru, mină)
 
 data_queue = queue.Queue()
 
-URL = 'https://5692-82-77-240-24.ngrok-free.app'
+URL = 'http://localhost:5000'
 
-@aplicație.route('/')
-def default():
-    PORT_RĂDĂCINĂ=5000
+PORT_RĂDĂCINĂ = 5000
+PORT = PORT_RĂDĂCINĂ
 
-    rezultat = requests.get(f'https://5692-82-77-240-24.ngrok-free.app/registru')
+if 'True' in os.environ.get('PEER'):
+    PORT = random.randint(30000,35000)
+
+    rezultat = requests.get(f'{URL}/registru')
 
     rezultat_registru = registru.din_json(rezultat.json())
 
+    try:
+        registru.înlocuiește_listă(rezultat_registru.listă)
+        print('\nRegistrul s-a sincronizat !')
+    except Exception as e:
+        print(f'\nRegistrul nu s-a sincronizat, eroare {e}')
+
+    if PORT >= 30000 and PORT <=35000:
+        PORT_CLIENT = random.randint(40001,45000)
+        client = Client('localhost',PORT_CLIENT, registru, mină)
+
+        client.startP2P()
+else:
+    PORT_CLIENT = 40000
+    client = Client('localhost',PORT_CLIENT, registru, mină)
+    client.startP2P()
+
+@aplicație.route('/')
+def default():
+
+    rezultat = requests.get(f'{URL}/registru')
+
+    rezultat_registru = registru.din_json(rezultat.json())
+    print(rezultat_registru)
     try:
         registru.înlocuiește_listă(rezultat_registru.listă)
         print('\nRegistrul s-a sincronizat !')
@@ -68,8 +100,8 @@ def route_adăugare_bloc():
 
     informații.append(Tranzacție.răsplătește_tranzacție(portofel).to_json())
 
-    registru.adaugă_bloc(['#%02x%02x%02x' % (red, green, blue), informații])
-    pubsub.transmite_bloc(registru.listă[-1])
+    bloc = registru.adaugă_bloc(['#%02x%02x%02x' % (red, green, blue), informații])
+    client.transmite_bloc(bloc.to_json())
 
     return jsonify(registru.listă[-1].to_json())
 
@@ -90,10 +122,9 @@ def route_adăugare_bloc_consensus():
 
     informații = mină.informații_tranzacții()
     informații.append(Tranzacție.răsplătește_tranzacție(portofel).to_json())
-    registru.adaugă_bloc(['#%02x%02x%02x' % (red, green, blue), informații])
+    bloc = registru.adaugă_bloc(['#%02x%02x%02x' % (red, green, blue), informații])
     print({f'durată_consensus: {time.time()-start}'})
     return {'status': 200}
-
 
 @aplicație.route('/portofel/trimite', methods=['POST'])
 def route_portofel_transact():
@@ -105,9 +136,9 @@ def route_portofel_transact():
     portofel.registru = Registrul.din_json(portofel.registru)
     tranzacția = mină.tranzacție_existentă(portofel.adresă)
     
-
     if tranzacția:
         tranzacția.actualizează(portofel, informații_tranzacție['beneficiar'], informații_tranzacție['sumă'])
+        print('Tranzacție Existentă')
     elif 'plătitor' in informații_tranzacție.keys():
         if informații_tranzacție['plătitor'] == informații_tranzacție['beneficiar']:
             tranzacția = Tranzacție(informații_tranzacție['plătitor'],informații_tranzacție['beneficiar'],informații_tranzacție['sumă'] )
@@ -116,7 +147,7 @@ def route_portofel_transact():
     else: 
         tranzacția = Tranzacție(portofel, informații_tranzacție['beneficiar'], informații_tranzacție['sumă'])
 
-    pubsub.transmitere_trazacție(tranzacția)
+    client.transmite_tranzacție(tranzacția.to_json())
     e_necesar_îndeplinitor = mină.e_necesar_îndeplinitor()
 
     if e_necesar_îndeplinitor:
@@ -133,8 +164,7 @@ def route_portofel_transact():
 
 
 def transmitere_date():
-    
-    pubsub.transmitere_tranzacție(Tranzacție.din_json(data_queue.get()))
+    client.transmite_tranzacție(Tranzacție.din_json(data_queue.get()).to_json())
 
 def pornire_threads():
     
@@ -147,20 +177,22 @@ def route_portofel_tranzacții():
     informații_tranzacție = request.get_json()
 
     [data_queue.put(trx) for trx in informații_tranzacție['tranzacții']]
-    print(f'date procesate {time.time()-start}')  
+      
     pornire_threads()
-    
+    #print(f'date procesate {time.time()-start}')
+    #print([w for w in mină.informații_tranzacții()])
+    # client.transmite_tranzacție(tranzacția.to_json())
     e_necesar_îndeplinitor = mină.e_necesar_îndeplinitor()
 
     if e_necesar_îndeplinitor:
-        îndeplinitor = registru.următor_îndeplinitor()
-        portofel = Portofel(registru)
-        portofel.registru = portofel.registru.to_json()
-        portofel.cheie_privată = []
-        portofel.cheie_publică = îndeplinitor
-        portofel.serializează_cheie_publică()
+       îndeplinitor = registru.următor_îndeplinitor()
+       portofel = Portofel(registru)
+       portofel.registru = portofel.registru.to_json()
+       portofel.cheie_privată = []
+       portofel.cheie_publică = îndeplinitor
+       portofel.serializează_cheie_publică()
 
-        bloc = requests.post(f'{URL}/registru/minează/consensus', json={'plătitor': portofel.to_json()}).json()
+       bloc = requests.post(f'{URL}/registru/minează/consensus', json={'plătitor': portofel.to_json()}).json()
     
     print({'durată_tranzacții': time.time() - start})
     return {'status': 200}
@@ -168,25 +200,5 @@ def route_portofel_tranzacții():
 @aplicație.route('/portofel/info')
 def route_portofel_info():
     return jsonify({'adresă': portofel.adresă, 'total': portofel.sumă})
-
-@aplicație.route('/registru/actualizare')
-def route_portofel_info():
-    return jsonify({'adresă': portofel.adresă, 'total': portofel.sumă})
-
-
-PORT_RĂDĂCINĂ = 5000
-PORT = PORT_RĂDĂCINĂ
-if 'True' in os.environ.get('PEER'):
-    PORT = random.randint(5001,35000)
-
-    rezultat = requests.get(f'https://5692-82-77-240-24.ngrok-free.app/registru')
-
-    rezultat_registru = registru.din_json(rezultat.json())
-
-    try:
-        registru.înlocuiește_listă(rezultat_registru.listă)
-        print('\nRegistrul s-a sincronizat !')
-    except Exception as e:
-        print(f'\nRegistrul nu s-a sincronizat, eroare {e}')
 
 aplicație.run(port=PORT)

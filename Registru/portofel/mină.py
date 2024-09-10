@@ -2,6 +2,17 @@ class Mină:
     def __init__(self):
         self.harta_tranzacțiilor = {}
     
+    def to_json(self):
+        def tranzacții_to_json():
+
+            for item in self.harta_tranzacțiilor.keys():
+                if type(self.harta_tranzacțiilor[item]) != dict:
+                    self.harta_tranzacțiilor[item] = self.harta_tranzacțiilor[item].to_json()
+        
+        tranzacții_to_json()
+
+        return self.__dict__
+        
     def pune_tranzacția(self, tranzacție):
         """
         Pune o tranzacție în mină

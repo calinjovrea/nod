@@ -14,11 +14,14 @@ pnconfig.subscribe_key = 'sub-c-f13bc8f3-1207-49be-a62e-2e00084894cc'
 pnconfig.publish_key = 'pub-c-d84002ba-b98d-42c0-a056-1e26a982ae49'
 pubnub = PubNub(pnconfig)
 
+import requests
+
 CANALE = {
     'TEST':'TEST',
     'BLOC':'BLOC',
     'TRANSACTION': 'TRANSACTION',
-    'BULK': 'BULK'
+    'BULK': 'BULK',
+    'REGISTRU': 'REGISTRU'
 }
 
 # pubnub.subscribe().channels([sistem]).execute()
@@ -31,11 +34,13 @@ class Listener(SubscribeCallback):
 
     def message(self, pubnub, mesaj):
         # if mesaj.channel == CANALE['BLOC']:
-            # print(f'\n-- Channel: {mesaj.channel} | Message: {mesaj.message}')
+        #     print(f'\n-- Channel: {mesaj.channel} | Message: {mesaj.message}')
 
         if mesaj.channel == CANALE['BLOC']:
-            # bloc = Bloc.din_json(mesaj.message)
-            listă = self.registru.listă[:]
+            rezultat = requests.get(f'https://localhost:5000/registru')
+
+            rezultat_registru = self.registru.din_json(rezultat.json())
+
             try:
                 self.registru.e_validă_lista(listă)
                 self.mină.clarifică_registru_tranzacții(self.registru)
@@ -53,7 +58,7 @@ class Listener(SubscribeCallback):
             [self.mină.pune_tranzacția(Tranzacție.din_json(tranzacție)) for tranzacție in mesaj.message['tranzacții']]
             print('Bulk Efectuat !')
         elif mesaj.channel == CANALE['REGISTRU']:
-            rezultat = requests.get(f'https://fe60-82-77-240-24.ngrok-free.app/registru')
+            rezultat = requests.get(f'https://localhost:5000/registru')
 
             rezultat_registru = self.registru.din_json(rezultat.json())
 
@@ -91,7 +96,7 @@ class PubSub():
     def transmite_bulk(self, bulk):
         self.publish(CANALE['BULK'], bulk)
 
-    def transmitere_tranzacție(self, transacție):
+    def tranzmitere_tranzacție(self, transacție):
         """
         Transmitere a unui bloc obiect către toate nodurile
         """

@@ -148,26 +148,24 @@ def test_5():
 def test_6():
 
     start = time.time()
-    portofele = [Portofel() for w in range(5000)]
+    portofele = [Portofel() for w in range(10000)]
 
     tranzacții = [Tranzacție(portofele[i], f'beneficiar-{random.randint(1,25000)}', random.randint(1,250)).to_json() for i in range(len(portofele))]
 
 
     bloc = requests.post(f'{URL}/portofel/trimite/tranzacții', json={'tranzacții': tranzacții}).json()
-    print(print(time.time() - start))
-
-    return bloc
+    print(time.time() - start)
 
 
 def test_6_threaded():
     threads = []
-    for k in range(8):
+    for k in range(4):
         t = threading.Thread(target=test_6)
         threads.append(t)
         t.start()
 
 
-def main():
+def test_7():
     import multiprocessing
 
     start = time.time()
@@ -177,6 +175,20 @@ def main():
 
     end = time.time()
     print(end - start)
+
+def main():
+
+    test_4()
+    # import multiprocessing
+
+    # start = time.time()
+    
+    # for i in range(8):
+    #     Process(target=test_6_threaded).start()
+
+    # end = time.time()
+    # print(end - start)
+
 if __name__== '__main__':
     main()
 
